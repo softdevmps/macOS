@@ -1,8 +1,18 @@
 import os
-from flask import Flask, render_template_string, request
+import base64
+import time
+from threading import Lock
+from flask import Flask, render_template_string, request, jsonify, Response
 
 app = Flask(__name__)
-latest_image = ""
+state_lock = Lock()
+latest_frame = {
+    "bytes": b"",
+    "content_type": "image/jpeg",
+    "seq": 0,
+    "ts": 0.0,
+    "cached_b64": None,
+}
 
 HTML = '''
 <!DOCTYPE html>
@@ -406,8 +416,8 @@ HTML = '''
         <button id="fullscreenBtn" type="button">Pantalla Completa</button>
         <label class="rate">
           Refresco
-          <input id="rateInput" type="range" min="120" max="1500" step="20" value="500" />
-          <span id="rateLabel">500ms</span>
+          <input id="rateInput" type="range" min="120" max="1500" step="20" value="350" />
+          <span id="rateLabel">350ms</span>
         </label>
       </div>
     </header>
@@ -475,10 +485,10 @@ HTML = '''
 
     let fitHeight = false;
     let timer = null;
-    let pollMs = 500;
+    let pollMs = 350;
     let frameCount = 0;
     let lastFrameTime = 0;
-    let lastData = "";
+    let currentSeq = 0;
     let reqInFlight = false;
     let fpsWindowStart = performance.now();
     let cropImage = null;
@@ -598,18 +608,27 @@ HTML = '''
       }
       reqInFlight = true;
       try {
-        const res = await fetch("/latest", { cache: "no-store" });
-        const data = await res.text();
-        if (data && data !== lastData) {
-          lastData = data;
-          img.src = "data:image/jpeg;base64," + data;
+        const res = await fetch("/frame-meta", { cache: "no-store" });
+        if (!res.ok) {
+          updateStatus(false);
+          return;
+        }
+
+        const meta = await res.json();
+        if (!meta.has_frame) {
+          updateStatus(false);
+          return;
+        }
+
+        if (meta.seq !== currentSeq) {
+          currentSeq = meta.seq;
+          const ts = Date.now();
+          img.src = "/frame?seq=" + currentSeq + "&t=" + ts;
           empty.style.display = "none";
           frameCount += 1;
-          lastFrameTime = Date.now();
-          lastUpdate.textContent = "Última actualización: " + new Date(lastFrameTime).toLocaleTimeString();
+          lastFrameTime = ts;
+          lastUpdate.textContent = "Última actualización: " + new Date(ts).toLocaleTimeString();
           updateStatus(true);
-        } else if (!data) {
-          updateStatus(false);
         }
 
         const now = performance.now();
@@ -764,13 +783,96 @@ def index():
 
 @app.route("/upload", methods=["POST"])
 def upload():
-    global latest_image
-    latest_image = request.json['image']
-    return "OK"
+    frame_bytes = b""
+    content_type = "image/jpeg"
+
+    if request.is_json:
+        payload = request.get_json(silent=True) or {}
+        encoded = payload.get("image", "")
+        if not encoded:
+            return jsonify({"ok": False, "error": "missing image"}), 400
+        try:
+            frame_bytes = base64.b64decode(encoded)
+        except Exception:
+            return jsonify({"ok": False, "error": "invalid base64"}), 400
+    elif "frame" in request.files:
+        uploaded = request.files["frame"]
+        frame_bytes = uploaded.read()
+        if uploaded.mimetype:
+            content_type = uploaded.mimetype
+    elif request.data:
+        frame_bytes = request.data
+        if request.mimetype:
+            content_type = request.mimetype
+    else:
+        return jsonify({"ok": False, "error": "missing frame"}), 400
+
+    if not frame_bytes:
+        return jsonify({"ok": False, "error": "empty frame"}), 400
+
+    with state_lock:
+        latest_frame["bytes"] = frame_bytes
+        latest_frame["content_type"] = content_type or "image/jpeg"
+        latest_frame["seq"] += 1
+        latest_frame["ts"] = time.time()
+        latest_frame["cached_b64"] = None
+        seq = latest_frame["seq"]
+
+    return jsonify({"ok": True, "seq": seq})
+
+
+@app.route("/frame-meta")
+def frame_meta():
+    with state_lock:
+        has_frame = bool(latest_frame["bytes"])
+        seq = latest_frame["seq"]
+        ts = latest_frame["ts"]
+        content_type = latest_frame["content_type"]
+        size = len(latest_frame["bytes"]) if has_frame else 0
+
+    return jsonify(
+        {
+            "has_frame": has_frame,
+            "seq": seq,
+            "ts": ts,
+            "content_type": content_type,
+            "size_bytes": size,
+        }
+    )
+
+
+@app.route("/frame")
+def frame():
+    with state_lock:
+        frame_bytes = latest_frame["bytes"]
+        content_type = latest_frame["content_type"]
+
+    if not frame_bytes:
+        return Response(status=404)
+
+    response = Response(frame_bytes, mimetype=content_type)
+    response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    response.headers["Pragma"] = "no-cache"
+    return response
 
 @app.route("/latest")
 def latest():
-    return latest_image
+    # Compatibilidad con clientes viejos que esperan base64 plano.
+    with state_lock:
+        if not latest_frame["bytes"]:
+            return ""
+        if latest_frame["cached_b64"] is None:
+            latest_frame["cached_b64"] = base64.b64encode(latest_frame["bytes"]).decode("utf-8")
+        return latest_frame["cached_b64"]
+
+
+@app.route("/health")
+def health():
+    with state_lock:
+        has_frame = bool(latest_frame["bytes"])
+        seq = latest_frame["seq"]
+        ts = latest_frame["ts"]
+    return jsonify({"ok": True, "has_frame": has_frame, "seq": seq, "ts": ts})
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", "5000"))
