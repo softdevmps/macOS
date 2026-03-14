@@ -193,6 +193,32 @@ HTML = '''
       top: 18px;
     }
 
+    .frame-actions {
+      position: absolute;
+      left: 12px;
+      top: 12px;
+      z-index: 6;
+      display: none;
+      gap: 8px;
+    }
+
+    .frame-action-btn {
+      border: 1px solid var(--panel-border);
+      background: rgba(6, 22, 27, 0.82);
+      color: var(--text);
+      padding: 7px 11px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 600;
+      cursor: pointer;
+    }
+
+    .frame:fullscreen .frame-actions {
+      display: flex;
+      left: 18px;
+      top: 18px;
+    }
+
     img {
       display: block;
       width: 100%;
@@ -372,6 +398,9 @@ HTML = '''
 
     <section class="stage">
       <div class="frame">
+        <div class="frame-actions">
+          <button id="captureFsBtn" type="button" class="frame-action-btn">Capturar</button>
+        </div>
         <span class="pill" id="modeLabel">Modo: ancho</span>
         <img id="img" src="" alt="Captura remota" />
         <div id="empty" class="empty">
@@ -414,6 +443,7 @@ HTML = '''
     const lastUpdate = document.getElementById("lastUpdate");
     const fps = document.getElementById("fps");
     const captureBtn = document.getElementById("captureBtn");
+    const captureFsBtn = document.getElementById("captureFsBtn");
     const fitBtn = document.getElementById("fitBtn");
     const modeLabel = document.getElementById("modeLabel");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
@@ -527,6 +557,14 @@ HTML = '''
       snapshot.src = img.src;
     }
 
+    async function startCaptureFlow() {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+        await new Promise((resolve) => setTimeout(resolve, 120));
+      }
+      openCropOverlay();
+    }
+
     function applyFitMode() {
       img.style.height = fitHeight ? "70vh" : "auto";
       img.style.objectFit = fitHeight ? "contain" : "cover";
@@ -579,7 +617,13 @@ HTML = '''
       timer = setInterval(fetchFrame, pollMs);
     }
 
-    captureBtn.addEventListener("click", openCropOverlay);
+    captureBtn.addEventListener("click", () => {
+      startCaptureFlow();
+    });
+
+    captureFsBtn.addEventListener("click", () => {
+      startCaptureFlow();
+    });
 
     fitBtn.addEventListener("click", () => {
       fitHeight = !fitHeight;
@@ -676,7 +720,7 @@ HTML = '''
       if (event.key.toLowerCase() === "f") {
         fullscreenBtn.click();
       } else if (event.key.toLowerCase() === "c") {
-        captureBtn.click();
+        startCaptureFlow();
       } else if (event.key === "Escape" && cropOverlay.classList.contains("active")) {
         closeCropOverlay();
       }
