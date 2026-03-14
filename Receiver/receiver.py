@@ -265,6 +265,13 @@ HTML = '''
       display: flex;
     }
 
+    .crop-overlay.fullscreen-crop {
+      padding: 0;
+      align-items: stretch;
+      justify-content: stretch;
+      background: rgba(0, 0, 0, 0.72);
+    }
+
     .crop-panel {
       width: min(1100px, 100%);
       max-height: 100%;
@@ -275,6 +282,19 @@ HTML = '''
       box-shadow: var(--shadow);
       display: grid;
       grid-template-rows: auto 1fr auto;
+    }
+
+    .crop-overlay.fullscreen-crop .crop-panel {
+      width: 100%;
+      max-width: none;
+      height: 100%;
+      max-height: none;
+      border-radius: 0;
+      border: none;
+    }
+
+    .crop-overlay.fullscreen-crop .crop-stage {
+      padding: 8px;
     }
 
     .crop-head {
@@ -532,16 +552,20 @@ HTML = '''
       const snapshot = new Image();
       snapshot.onload = () => {
         cropImage = snapshot;
+        const isFullscreenCapture = document.fullscreenElement === frame;
+        cropOverlay.classList.toggle("fullscreen-crop", isFullscreenCapture);
         const frameRect = frame.getBoundingClientRect();
-        const maxW = Math.max(300, Math.floor(frameRect.width * 0.94));
-        const maxH = Math.max(220, Math.floor(frameRect.height * 0.8));
-        const ratio = Math.min(maxW / snapshot.naturalWidth, maxH / snapshot.naturalHeight, 1);
+        const maxW = Math.max(300, Math.floor(frameRect.width * (isFullscreenCapture ? 0.995 : 0.94)));
+        const maxH = Math.max(220, Math.floor(frameRect.height * (isFullscreenCapture ? 0.92 : 0.8)));
+        const maxRatio = isFullscreenCapture ? 2 : 1;
+        const ratio = Math.min(maxW / snapshot.naturalWidth, maxH / snapshot.naturalHeight, maxRatio);
         cropCanvas.width = Math.max(1, Math.round(snapshot.naturalWidth * ratio));
         cropCanvas.height = Math.max(1, Math.round(snapshot.naturalHeight * ratio));
         cropScaleX = snapshot.naturalWidth / cropCanvas.width;
         cropScaleY = snapshot.naturalHeight / cropCanvas.height;
         cropCtx.drawImage(snapshot, 0, 0, cropCanvas.width, cropCanvas.height);
         resetCropRect();
+        setCropStatus("Fuente: " + snapshot.naturalWidth + "x" + snapshot.naturalHeight + " px");
         cropOverlay.classList.add("active");
         cropOverlay.setAttribute("aria-hidden", "false");
       };
