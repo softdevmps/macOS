@@ -1,9 +1,14 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(SPECPATH).resolve().parents[1]
+SENDER_SCRIPT = PROJECT_ROOT / "sender" / "sender.py"
+APP_ICON = PROJECT_ROOT / "assets" / "icons" / "screencapturehelper.icns"
 
 a = Analysis(
-    ['sender.py'],
-    pathex=[],
+    [str(SENDER_SCRIPT)],
+    pathex=[str(PROJECT_ROOT)],
     binaries=[],
     datas=[],
     hiddenimports=[],
@@ -45,7 +50,7 @@ coll = COLLECT(
 app = BUNDLE(
     coll,
     name='ScreenCaptureHelper.app',
-    icon='assets/screencapturehelper.icns',
+    icon=str(APP_ICON),
     bundle_identifier=None,
     info_plist={
         "LSUIElement": True,

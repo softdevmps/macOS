@@ -12,7 +12,7 @@ dist/
 
 # PyInstaller spec files
 *.spec
-!ScreenCaptureHelper.spec
+!packaging/macos/ScreenCaptureHelper.spec
 
 # Generated iconset folder
 assets/*.iconset/
