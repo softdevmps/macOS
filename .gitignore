@@ -3,10 +3,19 @@
 .runlogs/
 __pycache__/
 *.pyc
+*.log
 
 # Build artifacts
 build/
 dist/
+*.pkg
+
+# PyInstaller spec files
+*.spec
+!ScreenCaptureHelper.spec
+
+# Generated iconset folder
+assets/*.iconset/
 
 # IDE/editor
 .vscode/

@@ -7,18 +7,18 @@ import pyautogui
 import requests
 from PIL import Image, ImageChops, ImageStat
 
-SERVER_URL = os.getenv("SERVER_URL", "https://screen-receiver.onrender.com/upload")
+SERVER_URL = os.getenv("SERVER_URL", "https://macos-sr6q.onrender.com/upload")
 
-PROFILE = os.getenv("PROFILE", "wifi_balanced").strip().lower()
+PROFILE = os.getenv("PROFILE", "quality").strip().lower()
 
 if PROFILE == "low_bandwidth":
     default_fps = 0.8
     default_quality = 45
     default_width = 1024
 elif PROFILE == "quality":
-    default_fps = 1.2
-    default_quality = 68
-    default_width = 1600
+    default_fps = 1.0
+    default_quality = 82
+    default_width = 0
 else:
     default_fps = 1.0
     default_quality = 55
@@ -29,12 +29,12 @@ BASE_INTERVAL = 1.0 / max(TARGET_FPS, 0.1)
 MAX_BACKOFF_SECONDS = float(os.getenv("MAX_BACKOFF_SECONDS", "5.0"))
 
 BASE_JPEG_QUALITY = int(os.getenv("JPEG_QUALITY", str(default_quality)))
-MIN_JPEG_QUALITY = int(os.getenv("MIN_JPEG_QUALITY", "30"))
-MAX_JPEG_QUALITY = int(os.getenv("MAX_JPEG_QUALITY", "80"))
+MIN_JPEG_QUALITY = int(os.getenv("MIN_JPEG_QUALITY", str(default_quality)))
+MAX_JPEG_QUALITY = int(os.getenv("MAX_JPEG_QUALITY", str(default_quality)))
 
 MAX_WIDTH = int(os.getenv("MAX_WIDTH", str(default_width)))
 MAX_HEIGHT = int(os.getenv("MAX_HEIGHT", "0"))
-CHANGE_THRESHOLD = float(os.getenv("CHANGE_THRESHOLD", "2.5"))
+CHANGE_THRESHOLD = float(os.getenv("CHANGE_THRESHOLD", "0.8"))
 MAX_PAYLOAD_KB = int(os.getenv("MAX_PAYLOAD_KB", "320"))
 
 CONNECT_TIMEOUT = float(os.getenv("CONNECT_TIMEOUT", "3"))
