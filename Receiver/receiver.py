@@ -43,6 +43,10 @@ HTML = '''
       padding: 24px;
     }
 
+    body.overlay-open {
+      overflow: hidden;
+    }
+
     .app {
       width: min(1200px, 100%);
       background: var(--panel);
@@ -224,6 +228,94 @@ HTML = '''
       border-top: 1px solid var(--panel-border);
     }
 
+    .crop-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(3, 10, 12, 0.84);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+    }
+
+    .crop-overlay.active {
+      display: flex;
+    }
+
+    .crop-panel {
+      width: min(1100px, 100%);
+      max-height: 94vh;
+      overflow: hidden;
+      background: rgba(10, 28, 33, 0.95);
+      border: 1px solid var(--panel-border);
+      border-radius: 16px;
+      box-shadow: var(--shadow);
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+    }
+
+    .crop-head {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--panel-border);
+      color: var(--muted);
+      font-size: .9rem;
+    }
+
+    .crop-stage {
+      padding: 12px;
+      overflow: auto;
+    }
+
+    .crop-canvas-wrap {
+      position: relative;
+      width: fit-content;
+      margin: 0 auto;
+      border: 1px solid var(--panel-border);
+      border-radius: 10px;
+      overflow: hidden;
+      background: #000;
+    }
+
+    #cropCanvas {
+      display: block;
+      max-width: 100%;
+      height: auto;
+      cursor: crosshair;
+      user-select: none;
+    }
+
+    .crop-selection {
+      display: none;
+      position: absolute;
+      border: 2px solid var(--accent);
+      background: rgba(23, 217, 163, 0.12);
+      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.35);
+      pointer-events: none;
+    }
+
+    .crop-foot {
+      padding: 12px 14px;
+      border-top: 1px solid var(--panel-border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    .crop-actions {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+
+    .crop-status {
+      color: var(--muted);
+      font-size: .88rem;
+      min-height: 1.2em;
+    }
+
     @keyframes reveal {
       from {
         opacity: 0;
@@ -267,6 +359,7 @@ HTML = '''
         <span id="fps">0.0 fps</span>
       </div>
       <div class="controls">
+        <button id="captureBtn" type="button">Capturar</button>
         <button id="fitBtn" type="button" data-active="false">Ajustar Alto</button>
         <button id="fullscreenBtn" type="button">Pantalla Completa</button>
         <label class="rate">
@@ -288,9 +381,29 @@ HTML = '''
     </section>
 
     <footer class="footer">
-      Atajos: tecla F pantalla completa.
+      Atajos: tecla F pantalla completa, tecla C capturar.
     </footer>
   </main>
+
+  <div id="cropOverlay" class="crop-overlay" aria-hidden="true">
+    <div class="crop-panel">
+      <div class="crop-head">Arrastrá para seleccionar el recorte y luego copiá al portapapeles.</div>
+      <div class="crop-stage">
+        <div class="crop-canvas-wrap">
+          <canvas id="cropCanvas"></canvas>
+          <div id="cropSelection" class="crop-selection"></div>
+        </div>
+      </div>
+      <div class="crop-foot">
+        <span id="cropStatus" class="crop-status"></span>
+        <div class="crop-actions">
+          <button id="resetCropBtn" type="button">Reiniciar</button>
+          <button id="cancelCropBtn" type="button">Cancelar</button>
+          <button id="copyCropBtn" type="button">Copiar Recorte</button>
+        </div>
+      </div>
+    </div>
+  </div>
 
   <script>
     const img = document.getElementById("img");
@@ -300,11 +413,20 @@ HTML = '''
     const statusText = document.getElementById("statusText");
     const lastUpdate = document.getElementById("lastUpdate");
     const fps = document.getElementById("fps");
+    const captureBtn = document.getElementById("captureBtn");
     const fitBtn = document.getElementById("fitBtn");
     const modeLabel = document.getElementById("modeLabel");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const rateInput = document.getElementById("rateInput");
     const rateLabel = document.getElementById("rateLabel");
+    const cropOverlay = document.getElementById("cropOverlay");
+    const cropCanvas = document.getElementById("cropCanvas");
+    const cropSelection = document.getElementById("cropSelection");
+    const cropStatus = document.getElementById("cropStatus");
+    const copyCropBtn = document.getElementById("copyCropBtn");
+    const cancelCropBtn = document.getElementById("cancelCropBtn");
+    const resetCropBtn = document.getElementById("resetCropBtn");
+    const cropCtx = cropCanvas.getContext("2d");
 
     let fitHeight = false;
     let timer = null;
@@ -314,10 +436,95 @@ HTML = '''
     let lastData = "";
     let reqInFlight = false;
     let fpsWindowStart = performance.now();
+    let cropImage = null;
+    let dragStart = null;
+    let dragCurrent = null;
+    let cropRect = null;
+    let cropScaleX = 1;
+    let cropScaleY = 1;
 
     function updateStatus(online) {
       dot.classList.toggle("online", online);
       statusText.textContent = online ? "En línea" : "Sin señal";
+    }
+
+    function setCropStatus(message) {
+      cropStatus.textContent = message;
+    }
+
+    function normalizeRect(a, b) {
+      const x = Math.min(a.x, b.x);
+      const y = Math.min(a.y, b.y);
+      const w = Math.abs(a.x - b.x);
+      const h = Math.abs(a.y - b.y);
+      return { x, y, w, h };
+    }
+
+    function resetCropRect() {
+      dragStart = null;
+      dragCurrent = null;
+      cropRect = null;
+      cropSelection.style.display = "none";
+      setCropStatus("");
+    }
+
+    function closeCropOverlay() {
+      cropOverlay.classList.remove("active");
+      cropOverlay.setAttribute("aria-hidden", "true");
+      document.body.classList.remove("overlay-open");
+      resetCropRect();
+    }
+
+    function getCanvasPoint(event) {
+      const rect = cropCanvas.getBoundingClientRect();
+      const x = Math.max(0, Math.min(event.clientX - rect.left, rect.width));
+      const y = Math.max(0, Math.min(event.clientY - rect.top, rect.height));
+      return { x, y };
+    }
+
+    function drawSelection() {
+      if (!dragStart || !dragCurrent) {
+        return;
+      }
+      cropRect = normalizeRect(dragStart, dragCurrent);
+      if (cropRect.w < 2 || cropRect.h < 2) {
+        cropSelection.style.display = "none";
+        return;
+      }
+      cropSelection.style.display = "block";
+      cropSelection.style.left = cropRect.x + "px";
+      cropSelection.style.top = cropRect.y + "px";
+      cropSelection.style.width = cropRect.w + "px";
+      cropSelection.style.height = cropRect.h + "px";
+      setCropStatus("Seleccion: " + Math.round(cropRect.w * cropScaleX) + "x" + Math.round(cropRect.h * cropScaleY) + " px");
+    }
+
+    function openCropOverlay() {
+      if (!img.src || !img.naturalWidth || !img.naturalHeight) {
+        setCropStatus("No hay imagen para capturar.");
+        return;
+      }
+
+      const snapshot = new Image();
+      snapshot.onload = () => {
+        cropImage = snapshot;
+        const maxW = Math.floor(window.innerWidth * 0.9);
+        const maxH = Math.floor(window.innerHeight * 0.72);
+        const ratio = Math.min(maxW / snapshot.naturalWidth, maxH / snapshot.naturalHeight, 1);
+        cropCanvas.width = Math.max(1, Math.round(snapshot.naturalWidth * ratio));
+        cropCanvas.height = Math.max(1, Math.round(snapshot.naturalHeight * ratio));
+        cropScaleX = snapshot.naturalWidth / cropCanvas.width;
+        cropScaleY = snapshot.naturalHeight / cropCanvas.height;
+        cropCtx.drawImage(snapshot, 0, 0, cropCanvas.width, cropCanvas.height);
+        resetCropRect();
+        cropOverlay.classList.add("active");
+        cropOverlay.setAttribute("aria-hidden", "false");
+        document.body.classList.add("overlay-open");
+      };
+      snapshot.onerror = () => {
+        setCropStatus("No se pudo preparar la captura.");
+      };
+      snapshot.src = img.src;
     }
 
     function applyFitMode() {
@@ -372,6 +579,8 @@ HTML = '''
       timer = setInterval(fetchFrame, pollMs);
     }
 
+    captureBtn.addEventListener("click", openCropOverlay);
+
     fitBtn.addEventListener("click", () => {
       fitHeight = !fitHeight;
       applyFitMode();
@@ -391,9 +600,85 @@ HTML = '''
       startPolling();
     });
 
+    cropCanvas.addEventListener("pointerdown", (event) => {
+      if (!cropOverlay.classList.contains("active")) {
+        return;
+      }
+      dragStart = getCanvasPoint(event);
+      dragCurrent = dragStart;
+      drawSelection();
+      cropCanvas.setPointerCapture(event.pointerId);
+    });
+
+    cropCanvas.addEventListener("pointermove", (event) => {
+      if (!dragStart) {
+        return;
+      }
+      dragCurrent = getCanvasPoint(event);
+      drawSelection();
+    });
+
+    cropCanvas.addEventListener("pointerup", () => {
+      dragStart = null;
+      dragCurrent = null;
+    });
+
+    cropCanvas.addEventListener("pointercancel", () => {
+      dragStart = null;
+      dragCurrent = null;
+    });
+
+    resetCropBtn.addEventListener("click", resetCropRect);
+
+    cancelCropBtn.addEventListener("click", closeCropOverlay);
+
+    copyCropBtn.addEventListener("click", async () => {
+      if (!cropRect || cropRect.w < 2 || cropRect.h < 2 || !cropImage) {
+        setCropStatus("Primero selecciona un area para recortar.");
+        return;
+      }
+      const sx = Math.max(0, Math.floor(cropRect.x * cropScaleX));
+      const sy = Math.max(0, Math.floor(cropRect.y * cropScaleY));
+      const sw = Math.min(cropImage.naturalWidth - sx, Math.ceil(cropRect.w * cropScaleX));
+      const sh = Math.min(cropImage.naturalHeight - sy, Math.ceil(cropRect.h * cropScaleY));
+
+      if (sw <= 0 || sh <= 0) {
+        setCropStatus("El recorte no es valido.");
+        return;
+      }
+
+      const outCanvas = document.createElement("canvas");
+      outCanvas.width = sw;
+      outCanvas.height = sh;
+      outCanvas.getContext("2d").drawImage(cropImage, sx, sy, sw, sh, 0, 0, sw, sh);
+
+      const blob = await new Promise((resolve) => outCanvas.toBlob(resolve, "image/png"));
+      if (!blob) {
+        setCropStatus("No se pudo generar la imagen.");
+        return;
+      }
+
+      if (!navigator.clipboard || !window.ClipboardItem) {
+        setCropStatus("Tu navegador no soporta copiar imagenes al portapapeles.");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.write([new ClipboardItem({ "image/png": blob })]);
+        setCropStatus("Recorte copiado. Ahora pega con Ctrl+V o Cmd+V.");
+        setTimeout(closeCropOverlay, 450);
+      } catch (error) {
+        setCropStatus("No se pudo copiar. Revisa permisos del portapapeles.");
+      }
+    });
+
     document.addEventListener("keydown", (event) => {
       if (event.key.toLowerCase() === "f") {
         fullscreenBtn.click();
+      } else if (event.key.toLowerCase() === "c") {
+        captureBtn.click();
+      } else if (event.key === "Escape" && cropOverlay.classList.contains("active")) {
+        closeCropOverlay();
       }
     });
 
