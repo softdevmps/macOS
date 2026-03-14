@@ -1,4 +1,4 @@
-# MCStation
+# macOS
 
 Proyecto de captura remota de pantalla con:
 
