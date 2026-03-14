@@ -166,6 +166,29 @@ HTML = '''
       isolation: isolate;
     }
 
+    .frame:fullscreen {
+      width: 100vw;
+      height: 100vh;
+      max-width: none;
+      max-height: none;
+      border: none;
+      border-radius: 0;
+      margin: 0;
+      padding: 0;
+      background: #000;
+    }
+
+    .frame:fullscreen img {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+    }
+
+    .frame:fullscreen .pill {
+      right: 18px;
+      top: 18px;
+    }
+
     img {
       display: block;
       width: 100%;
@@ -244,7 +267,6 @@ HTML = '''
         <span id="fps">0.0 fps</span>
       </div>
       <div class="controls">
-        <button id="pauseBtn" type="button" data-active="false">Pausar</button>
         <button id="fitBtn" type="button" data-active="false">Ajustar Alto</button>
         <button id="fullscreenBtn" type="button">Pantalla Completa</button>
         <label class="rate">
@@ -266,25 +288,24 @@ HTML = '''
     </section>
 
     <footer class="footer">
-      Atajos: barra espaciadora pausa/reanuda, tecla F pantalla completa.
+      Atajos: tecla F pantalla completa.
     </footer>
   </main>
 
   <script>
     const img = document.getElementById("img");
+    const frame = document.querySelector(".frame");
     const empty = document.getElementById("empty");
     const dot = document.getElementById("statusDot");
     const statusText = document.getElementById("statusText");
     const lastUpdate = document.getElementById("lastUpdate");
     const fps = document.getElementById("fps");
-    const pauseBtn = document.getElementById("pauseBtn");
     const fitBtn = document.getElementById("fitBtn");
     const modeLabel = document.getElementById("modeLabel");
     const fullscreenBtn = document.getElementById("fullscreenBtn");
     const rateInput = document.getElementById("rateInput");
     const rateLabel = document.getElementById("rateLabel");
 
-    let isPaused = false;
     let fitHeight = false;
     let timer = null;
     let pollMs = 500;
@@ -306,17 +327,8 @@ HTML = '''
       modeLabel.textContent = fitHeight ? "Modo: alto" : "Modo: ancho";
     }
 
-    function togglePause() {
-      isPaused = !isPaused;
-      pauseBtn.dataset.active = isPaused ? "true" : "false";
-      pauseBtn.textContent = isPaused ? "Reanudar" : "Pausar";
-      if (!isPaused) {
-        fetchFrame();
-      }
-    }
-
     async function fetchFrame() {
-      if (isPaused || reqInFlight) {
+      if (reqInFlight) {
         return;
       }
       reqInFlight = true;
@@ -360,8 +372,6 @@ HTML = '''
       timer = setInterval(fetchFrame, pollMs);
     }
 
-    pauseBtn.addEventListener("click", togglePause);
-
     fitBtn.addEventListener("click", () => {
       fitHeight = !fitHeight;
       applyFitMode();
@@ -369,7 +379,7 @@ HTML = '''
 
     fullscreenBtn.addEventListener("click", async () => {
       if (!document.fullscreenElement) {
-        await document.documentElement.requestFullscreen();
+        await frame.requestFullscreen();
       } else {
         await document.exitFullscreen();
       }
@@ -382,10 +392,7 @@ HTML = '''
     });
 
     document.addEventListener("keydown", (event) => {
-      if (event.code === "Space") {
-        event.preventDefault();
-        togglePause();
-      } else if (event.key.toLowerCase() === "f") {
+      if (event.key.toLowerCase() === "f") {
         fullscreenBtn.click();
       }
     });
