@@ -6,6 +6,6 @@ cd "$ROOT_DIR"
 
 source .venv/bin/activate
 python -m pip install pyinstaller
-pyinstaller --noconfirm packaging/macos/ScreenCaptureHelper.spec
+pyinstaller --noconfirm packaging/macos/macOS.spec
 
-echo "Build listo en: $ROOT_DIR/dist/ScreenCaptureHelper.app"
+echo "Build listo en: $ROOT_DIR/dist/macOS.app"

