@@ -43,10 +43,6 @@ HTML = '''
       padding: 24px;
     }
 
-    body.overlay-open {
-      overflow: hidden;
-    }
-
     .app {
       width: min(1200px, 100%);
       background: var(--panel);
@@ -185,7 +181,7 @@ HTML = '''
     .frame:fullscreen img {
       width: 100vw;
       height: 100vh;
-      object-fit: contain;
+      object-fit: contain !important;
     }
 
     .frame:fullscreen .pill {
@@ -255,14 +251,14 @@ HTML = '''
     }
 
     .crop-overlay {
-      position: fixed;
+      position: absolute;
       inset: 0;
       background: rgba(3, 10, 12, 0.84);
       display: none;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
-      padding: 20px;
+      z-index: 30;
+      padding: 14px;
     }
 
     .crop-overlay.active {
@@ -271,7 +267,7 @@ HTML = '''
 
     .crop-panel {
       width: min(1100px, 100%);
-      max-height: 94vh;
+      max-height: 100%;
       overflow: hidden;
       background: rgba(10, 28, 33, 0.95);
       border: 1px solid var(--panel-border);
@@ -406,6 +402,25 @@ HTML = '''
         <div id="empty" class="empty">
           Esperando frames. Si no aparece imagen, revisá permisos de grabación de pantalla en macOS.
         </div>
+        <div id="cropOverlay" class="crop-overlay" aria-hidden="true">
+          <div class="crop-panel">
+            <div class="crop-head">Arrastrá para seleccionar el recorte y luego copiá al portapapeles.</div>
+            <div class="crop-stage">
+              <div class="crop-canvas-wrap">
+                <canvas id="cropCanvas"></canvas>
+                <div id="cropSelection" class="crop-selection"></div>
+              </div>
+            </div>
+            <div class="crop-foot">
+              <span id="cropStatus" class="crop-status"></span>
+              <div class="crop-actions">
+                <button id="resetCropBtn" type="button">Reiniciar</button>
+                <button id="cancelCropBtn" type="button">Cancelar</button>
+                <button id="copyCropBtn" type="button">Copiar Recorte</button>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -413,26 +428,6 @@ HTML = '''
       Atajos: tecla F pantalla completa, tecla C capturar.
     </footer>
   </main>
-
-  <div id="cropOverlay" class="crop-overlay" aria-hidden="true">
-    <div class="crop-panel">
-      <div class="crop-head">Arrastrá para seleccionar el recorte y luego copiá al portapapeles.</div>
-      <div class="crop-stage">
-        <div class="crop-canvas-wrap">
-          <canvas id="cropCanvas"></canvas>
-          <div id="cropSelection" class="crop-selection"></div>
-        </div>
-      </div>
-      <div class="crop-foot">
-        <span id="cropStatus" class="crop-status"></span>
-        <div class="crop-actions">
-          <button id="resetCropBtn" type="button">Reiniciar</button>
-          <button id="cancelCropBtn" type="button">Cancelar</button>
-          <button id="copyCropBtn" type="button">Copiar Recorte</button>
-        </div>
-      </div>
-    </div>
-  </div>
 
   <script>
     const img = document.getElementById("img");
@@ -501,7 +496,6 @@ HTML = '''
     function closeCropOverlay() {
       cropOverlay.classList.remove("active");
       cropOverlay.setAttribute("aria-hidden", "true");
-      document.body.classList.remove("overlay-open");
       resetCropRect();
     }
 
@@ -538,8 +532,9 @@ HTML = '''
       const snapshot = new Image();
       snapshot.onload = () => {
         cropImage = snapshot;
-        const maxW = Math.floor(window.innerWidth * 0.9);
-        const maxH = Math.floor(window.innerHeight * 0.72);
+        const frameRect = frame.getBoundingClientRect();
+        const maxW = Math.max(300, Math.floor(frameRect.width * 0.94));
+        const maxH = Math.max(220, Math.floor(frameRect.height * 0.8));
         const ratio = Math.min(maxW / snapshot.naturalWidth, maxH / snapshot.naturalHeight, 1);
         cropCanvas.width = Math.max(1, Math.round(snapshot.naturalWidth * ratio));
         cropCanvas.height = Math.max(1, Math.round(snapshot.naturalHeight * ratio));
@@ -549,7 +544,6 @@ HTML = '''
         resetCropRect();
         cropOverlay.classList.add("active");
         cropOverlay.setAttribute("aria-hidden", "false");
-        document.body.classList.add("overlay-open");
       };
       snapshot.onerror = () => {
         setCropStatus("No se pudo preparar la captura.");
@@ -558,16 +552,18 @@ HTML = '''
     }
 
     async function startCaptureFlow() {
-      if (document.fullscreenElement) {
-        await document.exitFullscreen();
-        await new Promise((resolve) => setTimeout(resolve, 120));
-      }
       openCropOverlay();
     }
 
     function applyFitMode() {
-      img.style.height = fitHeight ? "70vh" : "auto";
-      img.style.objectFit = fitHeight ? "contain" : "cover";
+      const isFrameFullscreen = document.fullscreenElement === frame;
+      if (isFrameFullscreen) {
+        img.style.height = "100vh";
+        img.style.objectFit = "contain";
+      } else {
+        img.style.height = fitHeight ? "70vh" : "auto";
+        img.style.objectFit = fitHeight ? "contain" : "cover";
+      }
       fitBtn.dataset.active = fitHeight ? "true" : "false";
       modeLabel.textContent = fitHeight ? "Modo: alto" : "Modo: ancho";
     }
@@ -636,6 +632,10 @@ HTML = '''
       } else {
         await document.exitFullscreen();
       }
+    });
+
+    document.addEventListener("fullscreenchange", () => {
+      applyFitMode();
     });
 
     rateInput.addEventListener("input", () => {
