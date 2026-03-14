@@ -1,0 +1,13 @@
+.DS_Store
+.venv/
+.runlogs/
+__pycache__/
+*.pyc
+
+# Build artifacts
+build/
+dist/
+
+# IDE/editor
+.vscode/
+.idea/
